@@ -17,7 +17,7 @@ from execution import SimulatedExecutionHandler
 
 
 class Backtester:
-    def __init__(self, bars=None, strategy=None, port=None, broker=None):
+    def __init__(self, bars=None, strategy=None, port=None, broker=None, start_date=None, end_date=None):
 
         if bars is None:
             bars = CoinDataHandler(self, ['okcoinUSD'])
@@ -40,13 +40,29 @@ class Backtester:
         self.__thread = Thread(target=self.__run)
         self.__active = False
         self.__handlers = {
-            'MARKET': [strategy.calculate_signals, port.update_timeindex],
+            'MARKET': [self.__filte_market_event],
             'SIGNAL': [port.update_signal],
             'ORDER': [broker.execute_order],
             'FILL': [port.update_fill]}
 
-        self.__start_date = None
-        self.__end_date = None
+        if start_date is not None:
+            try:
+                sd = datetime.datetime.strptime(start_date+" 00:00:00", "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                print("Parameter start_date can't be parsed by datetime.strptime,"
+                      "start_date will equal to None.")
+                sd = None
+
+        if end_date is not None:
+            try:
+                ed = datetime.datetime.strptime(end_date+" 00:00:00", "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                print("Parameter end_date can't be parsed by datetime.strptime,"
+                      "end_date will equal to None.")
+                ed = None
+
+        self.__start_date = sd
+        self.__end_date = ed
 
 
     def __filte_market_event(self, event):
@@ -55,7 +71,12 @@ class Backtester:
         将MarketEvent传递给strategy.calculate_signals和port.update_timeindex，
         否则，则什么也不做。
         """
-        pass
+        if event.kind == "MARKET":
+            if (self.__start_date is not None) and (self.__end_date is not None):
+                bar = self.bars.get_latest_bars(self.bars.symbol_list[0])[0]
+                if self.__start_date <= bar.dt <= self.__end_date:
+                    self.strategy.calculate_signals(event)
+                    self.port.update_timeindex(event)
         
         
     def __run(self):
@@ -106,8 +127,13 @@ class Backtester:
 if __name__ == '__main__':
     import datetime
     time1 = datetime.datetime.now()
-    tester = Backtester()
+    tester = Backtester(start_date="2017-8-8", end_date="2018-8-27")
 
     tester.start()
     total_seconds = (datetime.datetime.now() - time1).seconds
+
+    tester.port.create_equity_curve_dataframe()
+
+    print("--------{}".format(tester.port.equity_curve))
+
     print("Backtest is running with a total of {} seconds.".format(total_seconds))

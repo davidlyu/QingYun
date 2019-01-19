@@ -234,7 +234,7 @@ class CoinDataHandler(DataHandler):
         for s in self.symbol_list:
             filename = "datas/{}.csv".format(s)
             coin_df = pd.read_csv(filename, names=['timestamp', 'price', 'volume'],
-                        header=0, nrows=10000)
+                        header=0, nrows=100000)
             bar_df = self._tick2bar(coin_df)
             self.symbol_data[s] = bar_df
 
